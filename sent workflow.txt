@@ -1,0 +1,79 @@
+import pandas as pd
+import re
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+
+# ==========================================
+# 1. LOAD THE DATA
+# ==========================================
+# This is where we read your CSV file
+df = pd.read_csv('imdb_10K_sentimnets_reviews.csv')
+print(f"Loaded {len(df)} reviews.")
+
+# ==========================================
+# 2. CLEAN THE TEXT (Preprocessing)
+# ==========================================
+# Computers hate HTML tags like <br> and special characters like !!!
+def clean_my_text(text):
+    text = re.sub(r'<.*?>', '', text)       # Remove HTML
+    text = re.sub(r'[^a-zA-Z]', ' ', text) # Remove numbers and symbols
+    words = text.lower().split()           # Make everything lowercase
+    # Remove "Stopwords" (common words like 'the', 'is', 'at' that have no emotion)
+    clean_words = [w for w in words if w not in ENGLISH_STOP_WORDS]
+    return " ".join(clean_words)
+
+print("Cleaning text... please wait.")
+df['cleaned_review'] = df['review'].apply(clean_my_text)
+
+# ==========================================
+# 3. SPLIT THE DATA
+# ==========================================
+# We keep 80% to "teach" the model and 20% to "test" if it actually learned
+X_train, X_test, y_train, y_test = train_test_split(
+    df['cleaned_review'], df['sentiment'], test_size=0.2, random_state=42
+)
+
+# ==========================================
+# 4. CONVERT TEXT TO NUMBERS (Vectorization)
+# ==========================================
+# Machines only understand numbers. TF-IDF turns words into math scores.
+vectorizer = TfidfVectorizer(max_features=5000)
+X_train_math = vectorizer.fit_transform(X_train)
+X_test_math = vectorizer.transform(X_test)
+
+# ==========================================
+# 5. TRAIN THE BRAIN (Modeling)
+# ==========================================
+# We use Logistic Regression. It's like a smart calculator for categories.
+model = LogisticRegression()
+model.fit(X_train_math, y_train)
+
+# ==========================================
+# 6. TEST THE MODEL
+# ==========================================
+predictions = model.predict(X_test_math)
+accuracy = accuracy_score(y_test, predictions)
+print(f"Success! The model is {accuracy:.2%} accurate.")
+
+# ==========================================
+# 7. SAVE FOR LATER
+# ==========================================
+joblib.dump(model, 'my_sentiment_model.pkl')
+joblib.dump(vectorizer, 'my_vectorizer.pkl')
+print("Model saved as 'my_sentiment_model.pkl'")
+
+# ==========================================
+# 8. TRY IT YOURSELF!
+# ==========================================
+def predict_my_review(new_review):
+    cleaned = clean_my_text(new_review)
+    math_version = vectorizer.transform([cleaned])
+    result = model.predict(math_version)[0]
+    return "Positive 😊" if result == 1 else "Negative 😞"
+
+print("\n--- TEST IT ---")
+print(f"Review: 'This movie was amazing!' -> {predict_my_review('This movie was amazing!')}")
+print(f"Review: 'I wasted my time.' -> {predict_my_review('I wasted my time.')}")
